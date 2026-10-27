@@ -1,15 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
-)
-
-// Ensures gofmt doesn't remove the "net" and "os" imports above (feel free to remove this!)
-var (
-	_ = net.Listen
-	_ = os.Exit
 )
 
 func main() {
@@ -22,9 +17,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	_, err = l.Accept()
+	conn, err := l.Accept()
 	if err != nil {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
 	}
+
+	_, _ = bufio.NewReader(conn).ReadString('\n')
+	conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
 }
