@@ -17,15 +17,33 @@ func main() {
 		fmt.Println("Failed to bind to port 4221")
 		os.Exit(1)
 	}
+	defer l.Close()
 
-	conn, err := l.Accept()
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+
+		handleConnection(conn)
+	}
+}
+
+func handleConnection(conn net.Conn) {
+	defer conn.Close()
+	msg, err := bufio.NewReader(conn).ReadString('\n')
 	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
+		fmt.Printf("Read error: %v", err)
+		return
 	}
 
-	msg, _ := bufio.NewReader(conn).ReadString('\n')
-	parts := strings.Split(msg, "\r\n")
-	fmt.Println(parts)
-	conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
+	something := strings.Split(msg, " ")
+	switch something[1] {
+	case "/":
+		conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
+	default:
+		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+	}
+	conn.Close()
 }
