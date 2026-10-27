@@ -38,12 +38,11 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	something := strings.Split(msg, " ")
-	switch something[1] {
+	path := strings.Split(strings.TrimRight(msg, "\r\n"), " ")
+	switch path[1] {
 	case "/":
 		conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
 	default:
 		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
 	}
-	conn.Close()
 }
