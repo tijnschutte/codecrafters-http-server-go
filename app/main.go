@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -23,6 +24,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	_, _ = bufio.NewReader(conn).ReadString('\n')
+	msg, _ := bufio.NewReader(conn).ReadString('\n')
+	parts := strings.Split(msg, "\r\n")
+	fmt.Println(parts)
 	conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
 }
