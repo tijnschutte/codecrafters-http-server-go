@@ -38,8 +38,8 @@ func handleConnection(conn net.Conn) {
 		return
 	}
 
-	path := strings.Split(strings.TrimRight(msg, "\r\n"), " ")
-	switch path[1] {
+	requestLine := strings.Split(strings.TrimRight(msg, "\r\n"), " ")
+	switch requestLine[1] {
 	case "/":
 		conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
 	default:
