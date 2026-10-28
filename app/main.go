@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -24,7 +27,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		handleClient(conn)
+		go handleClient(conn)
 	}
 }
 
@@ -44,11 +47,11 @@ func parseRequest(msg string) (Request, error) {
 
 	left, right, found := strings.Cut(msg, CRLF)
 	if !found {
-		return parsed, &net.ParseError{Text: "Invalid HTTP"}
+		return parsed, errors.New("invalid HTTP")
 	}
 	requestLine := strings.Split(left, " ")
 	if len(requestLine) != 3 {
-		return parsed, &net.ParseError{Text: "Requestline should have 3 parts"}
+		return parsed, errors.New("request line should be exactly 3 parts")
 	}
 	parsed.method, parsed.path, parsed.version = requestLine[0], requestLine[1], requestLine[2]
 
@@ -75,15 +78,21 @@ type Response struct {
 	body    string
 }
 
-func (r Response) Bytes() []byte {
-	var sb strings.Builder
-	sb.Write([]byte(r.status + CRLF))
-	for header := range r.headers {
-		sb.Write([]byte(header + ": " + r.headers[header] + CRLF))
+func (r Response) Write(w io.Writer) error {
+	bw := bufio.NewWriter(w)
+
+	bw.WriteString(r.status)
+	bw.WriteString(CRLF)
+	for k, v := range r.headers {
+		bw.WriteString(k)
+		bw.WriteString(": ")
+		bw.WriteString(v)
+		bw.WriteString(CRLF)
 	}
-	sb.Write([]byte(CRLF))
-	sb.Write([]byte(r.body))
-	return []byte(sb.String())
+	bw.WriteString(CRLF)
+	bw.WriteString(r.body)
+	err := bw.Flush()
+	return err
 }
 
 func handleClient(conn net.Conn) {
@@ -99,20 +108,19 @@ func handleClient(conn net.Conn) {
 
 	req, _ := parseRequest(string(buf[:n]))
 	switch {
-	case strings.HasPrefix(req.path, "/echo"):
+	case strings.HasPrefix(req.path, "/echo/"):
 		body, _ := strings.CutPrefix(req.path, "/echo/")
-		res := Response{
+		Response{
 			status: "HTTP/1.1 200 OK",
 			headers: map[string]string{
 				"Content-Type":   "text/plain",
 				"Content-Length": strconv.Itoa(len(body)),
 			},
 			body: body,
-		}
-		conn.Write(res.Bytes())
+		}.Write(conn)
 	case req.path == "/":
-		conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
+		Response{status: "HTTP/1.1 200 OK"}.Write(conn)
 	default:
-		conn.Write([]byte("HTTP/1.1 404 Not Found\r\n\r\n"))
+		Response{status: "HTTP/1.1 404 Not Found\r\n\r\n"}.Write(conn)
 	}
 }
