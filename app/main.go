@@ -62,7 +62,7 @@ func parseRequest(msg string) (Request, error) {
 		if !keepGoing {
 			break
 		}
-		parsed.headers[key] = value
+		parsed.headers[strings.ToLower(key)] = value
 		left, right, found = strings.Cut(right, CRLF)
 	}
 
@@ -108,6 +108,16 @@ func handleClient(conn net.Conn) {
 
 	req, _ := parseRequest(string(buf[:n]))
 	switch {
+	case strings.HasPrefix(req.path, "/user-agent/"):
+		body := req.headers["user-agent"]
+		Response{
+			status: "HTTP/1.1 200 OK",
+			headers: map[string]string{
+				"Content-Type":   "text/plain",
+				"Content-Length": strconv.Itoa(len(body)),
+			},
+			body: body,
+		}.Write(conn)
 	case strings.HasPrefix(req.path, "/echo/"):
 		body, _ := strings.CutPrefix(req.path, "/echo/")
 		Response{
