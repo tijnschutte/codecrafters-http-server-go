@@ -41,9 +41,16 @@ type Request struct {
 
 const CRLF = "\r\n"
 
-func parseRequest(msg string) (Request, error) {
-	// GET /echo/abc HTTP/1.1\r\nHost: localhost:4221\r\nUser-Agent: curl/7.64.1\r\nAccept: */*\r\n\r\n
+func readRequest(conn io.Reader) (Request, error) {
 	parsed := Request{}
+
+	// Read data
+	buf := make([]byte, 1024)
+	n, err := conn.Read(buf)
+	if err != nil {
+		return parsed, err
+	}
+	msg := string(buf[:n])
 
 	left, right, found := strings.Cut(msg, CRLF)
 	if !found {
@@ -53,7 +60,9 @@ func parseRequest(msg string) (Request, error) {
 	if len(requestLine) != 3 {
 		return parsed, errors.New("request line should be exactly 3 parts")
 	}
-	parsed.method, parsed.path, parsed.version = requestLine[0], requestLine[1], requestLine[2]
+	parsed.method = requestLine[0]
+	parsed.path = requestLine[1]
+	parsed.version = requestLine[2]
 
 	parsed.headers = map[string]string{}
 	left, right, found = strings.Cut(right, CRLF)
@@ -99,17 +108,13 @@ func handleClient(conn net.Conn) {
 	// Ensure we close the connection after we're done
 	defer conn.Close()
 
-	// Read data
-	buf := make([]byte, 1024)
-	n, err := conn.Read(buf)
+	req, err := readRequest(conn)
 	if err != nil {
 		return
 	}
-
-	req, _ := parseRequest(string(buf[:n]))
 	switch {
-	case strings.HasPrefix(req.path, "/user-agent/"):
-		body := req.headers["user-agent"]
+	case strings.HasPrefix(req.path, "/echo/"):
+		body, _ := strings.CutPrefix(req.path, "/echo/")
 		Response{
 			status: "HTTP/1.1 200 OK",
 			headers: map[string]string{
@@ -118,8 +123,8 @@ func handleClient(conn net.Conn) {
 			},
 			body: body,
 		}.Write(conn)
-	case strings.HasPrefix(req.path, "/echo/"):
-		body, _ := strings.CutPrefix(req.path, "/echo/")
+	case req.path == "/user-agent":
+		body := req.headers["user-agent"]
 		Response{
 			status: "HTTP/1.1 200 OK",
 			headers: map[string]string{
@@ -131,6 +136,6 @@ func handleClient(conn net.Conn) {
 	case req.path == "/":
 		Response{status: "HTTP/1.1 200 OK"}.Write(conn)
 	default:
-		Response{status: "HTTP/1.1 404 Not Found\r\n\r\n"}.Write(conn)
+		Response{status: "HTTP/1.1 404 Not Found"}.Write(conn)
 	}
 }
