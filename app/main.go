@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -39,13 +38,13 @@ func handleClient(conn net.Conn) {
 		return
 	}
 	switch {
+	case strings.HasPrefix(req.path, "/files/"):
 	case strings.HasPrefix(req.path, "/echo/"):
 		body, _ := strings.CutPrefix(req.path, "/echo/")
 		Response{
 			status: "HTTP/1.1 200 OK",
 			headers: map[string]string{
-				"Content-Type":   "text/plain",
-				"Content-Length": strconv.Itoa(len(body)),
+				"Content-Type": "text/plain",
 			},
 			body: body,
 		}.Write(conn)
@@ -54,8 +53,7 @@ func handleClient(conn net.Conn) {
 		Response{
 			status: "HTTP/1.1 200 OK",
 			headers: map[string]string{
-				"Content-Type":   "text/plain",
-				"Content-Length": strconv.Itoa(len(body)),
+				"Content-Type": "text/plain",
 			},
 			body: body,
 		}.Write(conn)

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"io"
+	"strconv"
 )
 
 type Response struct {
@@ -22,6 +23,9 @@ func (r Response) Write(w io.Writer) error {
 		bw.WriteString(v)
 		bw.WriteString(CRLF)
 	}
+	bw.WriteString("Content-Length: ")
+	bw.WriteString(strconv.Itoa(len(r.body)))
+	bw.WriteString(CRLF)
 	bw.WriteString(CRLF)
 	bw.WriteString(r.body)
 	err := bw.Flush()
