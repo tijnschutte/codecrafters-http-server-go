@@ -39,22 +39,27 @@ func handleClient(conn net.Conn, dir string) {
 
 	req, err := readRequest(conn)
 	if err != nil {
+		Response{status: Bad}.Write(conn)
 		return
 	}
 
 	switch {
 	case strings.HasPrefix(req.path, "/files/"):
 		filename, _ := strings.CutPrefix(req.path, "/files/")
+		if !filepath.IsLocal(filename) {
+			Response{status: Bad}.Write(conn)
+			return
+		}
 		path := filepath.Join(dir, filename)
 		switch req.method {
 		case GET:
 			data, err := os.ReadFile(path)
 			if err != nil {
-				Response{status: "HTTP/1.1 404 Not Found"}.Write(conn)
+				Response{status: NotFound}.Write(conn)
 				return
 			}
 			Response{
-				status: "HTTP/1.1 200 OK",
+				status: Ok,
 				headers: map[string]string{
 					"Content-Type": "application/octet-stream",
 				},
@@ -63,14 +68,15 @@ func handleClient(conn net.Conn, dir string) {
 		case POST:
 			err := os.WriteFile(path, []byte(req.body), 0o644)
 			if err != nil {
+				Response{status: InternalServerError}.Write(conn)
 				return
 			}
-			Response{status: "HTTP/1.1 201 Created"}.Write(conn)
+			Response{status: Created}.Write(conn)
 		}
 	case strings.HasPrefix(req.path, "/echo/"):
 		body, _ := strings.CutPrefix(req.path, "/echo/")
 		Response{
-			status: "HTTP/1.1 200 OK",
+			status: Ok,
 			headers: map[string]string{
 				"Content-Type": "text/plain",
 			},
@@ -79,15 +85,15 @@ func handleClient(conn net.Conn, dir string) {
 	case req.path == "/user-agent":
 		body := req.headers["user-agent"]
 		Response{
-			status: "HTTP/1.1 200 OK",
+			status: Ok,
 			headers: map[string]string{
 				"Content-Type": "text/plain",
 			},
 			body: body,
 		}.Write(conn)
 	case req.path == "/":
-		Response{status: "HTTP/1.1 200 OK"}.Write(conn)
+		Response{status: Ok}.Write(conn)
 	default:
-		Response{status: "HTTP/1.1 404 Not Found"}.Write(conn)
+		Response{status: NotFound}.Write(conn)
 	}
 }

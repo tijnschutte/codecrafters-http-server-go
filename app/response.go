@@ -6,8 +6,18 @@ import (
 	"strconv"
 )
 
+type STATUS string
+
+const (
+	NotFound            STATUS = "HTTP/1.1 404 Not Found"
+	Ok                  STATUS = "HTTP/1.1 200 OK"
+	Created             STATUS = "HTTP/1.1 201 Created"
+	Bad                 STATUS = "HTTP/1.1 400 Bad Request"
+	InternalServerError STATUS = "HTTP/1.1 500 Internal Server Error"
+)
+
 type Response struct {
-	status  string
+	status  STATUS
 	headers map[string]string
 	body    string
 }
@@ -15,7 +25,7 @@ type Response struct {
 func (r Response) Write(w io.Writer) error {
 	bw := bufio.NewWriter(w)
 
-	bw.WriteString(r.status)
+	bw.WriteString(string(r.status))
 	bw.WriteString(CRLF)
 	for k, v := range r.headers {
 		bw.WriteString(k)
