@@ -41,22 +41,27 @@ func handleClient(conn net.Conn, dir string) {
 	if err != nil {
 		return
 	}
+	fmt.Println(req)
 
 	switch {
 	case strings.HasPrefix(req.path, "/files/"):
-		filename, _ := strings.CutPrefix(req.path, "/files/")
-		data, err := os.ReadFile(filepath.Join(dir, filename))
-		if err != nil {
-			Response{status: "HTTP/1.1 404 Not Found"}.Write(conn)
-			return
+		switch req.method {
+		case GET:
+			filename, _ := strings.CutPrefix(req.path, "/files/")
+			data, err := os.ReadFile(filepath.Join(dir, filename))
+			if err != nil {
+				Response{status: "HTTP/1.1 404 Not Found"}.Write(conn)
+				return
+			}
+			Response{
+				status: "HTTP/1.1 200 OK",
+				headers: map[string]string{
+					"Content-Type": "application/octet-stream",
+				},
+				body: string(data),
+			}.Write(conn)
+		case POST:
 		}
-		Response{
-			status: "HTTP/1.1 200 OK",
-			headers: map[string]string{
-				"Content-Type": "application/octet-stream",
-			},
-			body: string(data),
-		}.Write(conn)
 	case strings.HasPrefix(req.path, "/echo/"):
 		body, _ := strings.CutPrefix(req.path, "/echo/")
 		Response{

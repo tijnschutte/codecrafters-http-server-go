@@ -6,8 +6,15 @@ import (
 	"strings"
 )
 
+type Method string
+
+const (
+	GET  Method = "GET"
+	POST Method = "POST"
+)
+
 type Request struct {
-	method  string
+	method  Method
 	path    string
 	version string
 	headers map[string]string
@@ -33,7 +40,7 @@ func readRequest(conn io.Reader) (Request, error) {
 	if len(requestLine) != 3 {
 		return parsed, errors.New("request line should be exactly 3 parts")
 	}
-	parsed.method = requestLine[0]
+	parsed.method = Method(requestLine[0])
 	parsed.path = requestLine[1]
 	parsed.version = requestLine[2]
 
