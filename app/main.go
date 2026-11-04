@@ -34,66 +34,68 @@ func main() {
 }
 
 func handleClient(conn net.Conn, dir string) {
-	// Ensure we close the connection after we're done
 	defer conn.Close()
-
-	req, err := readRequest(conn)
-	if err != nil {
-		Response{status: Bad}.Write(conn)
-		return
-	}
-
-	switch {
-	case strings.HasPrefix(req.path, "/files/"):
-		filename, _ := strings.CutPrefix(req.path, "/files/")
-		if !filepath.IsLocal(filename) {
+	persistence := true
+	for persistence {
+		req, err := readRequest(conn)
+		if err != nil {
 			Response{status: Bad}.Write(conn)
-			return
+			continue
 		}
-		path := filepath.Join(dir, filename)
-		switch req.method {
-		case GET:
-			data, err := os.ReadFile(path)
-			if err != nil {
-				Response{status: NotFound}.Write(conn)
-				return
+		persistence = req.headers["Connection"] != "close"
+
+		switch {
+		case strings.HasPrefix(req.path, "/files/"):
+			filename, _ := strings.CutPrefix(req.path, "/files/")
+			if !filepath.IsLocal(filename) {
+				Response{status: Bad}.Write(conn)
+				continue
 			}
+			path := filepath.Join(dir, filename)
+			switch req.method {
+			case GET:
+				data, err := os.ReadFile(path)
+				if err != nil {
+					Response{status: NotFound}.Write(conn)
+					continue
+				}
+				Response{
+					status: Ok,
+					headers: map[string]string{
+						"Content-Type": "application/octet-stream",
+					},
+					body: string(data),
+				}.Write(conn)
+			case POST:
+				err := os.WriteFile(path, []byte(req.body), 0o644)
+				if err != nil {
+					Response{status: InternalServerError}.Write(conn)
+					continue
+				}
+				Response{status: Created}.Write(conn)
+			}
+		case strings.HasPrefix(req.path, "/echo/"):
+			body, _ := strings.CutPrefix(req.path, "/echo/")
 			Response{
 				status: Ok,
 				headers: map[string]string{
-					"Content-Type": "application/octet-stream",
+					"Content-Type": "text/plain",
 				},
-				body: string(data),
+				body: body,
 			}.Write(conn)
-		case POST:
-			err := os.WriteFile(path, []byte(req.body), 0o644)
-			if err != nil {
-				Response{status: InternalServerError}.Write(conn)
-				return
-			}
-			Response{status: Created}.Write(conn)
+		case req.path == "/user-agent":
+			body := req.headers["user-agent"]
+			Response{
+				status: Ok,
+				headers: map[string]string{
+					"Content-Type": "text/plain",
+				},
+				body: body,
+			}.Write(conn)
+		case req.path == "/":
+			Response{status: Ok}.Write(conn)
+		default:
+			Response{status: NotFound}.Write(conn)
 		}
-	case strings.HasPrefix(req.path, "/echo/"):
-		body, _ := strings.CutPrefix(req.path, "/echo/")
-		Response{
-			status: Ok,
-			headers: map[string]string{
-				"Content-Type": "text/plain",
-			},
-			body: body,
-		}.Write(conn)
-	case req.path == "/user-agent":
-		body := req.headers["user-agent"]
-		Response{
-			status: Ok,
-			headers: map[string]string{
-				"Content-Type": "text/plain",
-			},
-			body: body,
-		}.Write(conn)
-	case req.path == "/":
-		Response{status: Ok}.Write(conn)
-	default:
-		Response{status: NotFound}.Write(conn)
 	}
 }
