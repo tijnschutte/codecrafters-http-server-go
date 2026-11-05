@@ -22,7 +22,7 @@ type Response struct {
 	body    string
 }
 
-func (r Response) Write(w io.Writer) error {
+func (r Response) Write(w io.Writer, close bool) error {
 	bw := bufio.NewWriter(w)
 
 	bw.WriteString(string(r.status))
@@ -31,6 +31,10 @@ func (r Response) Write(w io.Writer) error {
 		bw.WriteString(k)
 		bw.WriteString(": ")
 		bw.WriteString(v)
+		bw.WriteString(CRLF)
+	}
+	if close {
+		bw.WriteString("Connection: close")
 		bw.WriteString(CRLF)
 	}
 	bw.WriteString("Content-Length: ")

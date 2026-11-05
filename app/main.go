@@ -35,20 +35,23 @@ func main() {
 
 func handleClient(conn net.Conn, dir string) {
 	defer conn.Close()
-	persistence := true
-	for persistence {
+	close := false
+	for !close {
 		req, err := readRequest(conn)
 		if err != nil {
-			Response{status: Bad}.Write(conn)
-			continue
+			// EOF or broken conn: the client is gone, stop instead of spinning
+			return
 		}
-		persistence = req.headers["Connection"] != "close"
+		close = req.headers["connection"] == "close"
+
+		fmt.Println(req)
+		fmt.Println(close)
 
 		switch {
 		case strings.HasPrefix(req.path, "/files/"):
 			filename, _ := strings.CutPrefix(req.path, "/files/")
 			if !filepath.IsLocal(filename) {
-				Response{status: Bad}.Write(conn)
+				Response{status: Bad}.Write(conn, close)
 				continue
 			}
 			path := filepath.Join(dir, filename)
@@ -56,7 +59,7 @@ func handleClient(conn net.Conn, dir string) {
 			case GET:
 				data, err := os.ReadFile(path)
 				if err != nil {
-					Response{status: NotFound}.Write(conn)
+					Response{status: NotFound}.Write(conn, close)
 					continue
 				}
 				Response{
@@ -65,14 +68,14 @@ func handleClient(conn net.Conn, dir string) {
 						"Content-Type": "application/octet-stream",
 					},
 					body: string(data),
-				}.Write(conn)
+				}.Write(conn, close)
 			case POST:
 				err := os.WriteFile(path, []byte(req.body), 0o644)
 				if err != nil {
-					Response{status: InternalServerError}.Write(conn)
+					Response{status: InternalServerError}.Write(conn, close)
 					continue
 				}
-				Response{status: Created}.Write(conn)
+				Response{status: Created}.Write(conn, close)
 			}
 		case strings.HasPrefix(req.path, "/echo/"):
 			body, _ := strings.CutPrefix(req.path, "/echo/")
@@ -82,7 +85,7 @@ func handleClient(conn net.Conn, dir string) {
 					"Content-Type": "text/plain",
 				},
 				body: body,
-			}.Write(conn)
+			}.Write(conn, close)
 		case req.path == "/user-agent":
 			body := req.headers["user-agent"]
 			Response{
@@ -91,11 +94,11 @@ func handleClient(conn net.Conn, dir string) {
 					"Content-Type": "text/plain",
 				},
 				body: body,
-			}.Write(conn)
+			}.Write(conn, close)
 		case req.path == "/":
-			Response{status: Ok}.Write(conn)
+			Response{status: Ok}.Write(conn, close)
 		default:
-			Response{status: NotFound}.Write(conn)
+			Response{status: NotFound}.Write(conn, close)
 		}
 	}
 }
