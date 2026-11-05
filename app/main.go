@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"net"
@@ -36,10 +37,11 @@ func main() {
 func handleClient(conn net.Conn, dir string) {
 	defer conn.Close()
 	close := false
+	r := bufio.NewReader(conn)
 	for !close {
-		req, err := readRequest(conn)
+		req, err := readRequest(r)
 		if err != nil {
-			// EOF or broken conn: the client is gone, stop instead of spinning
+			// EOF or broken conn: the client is gone, stop
 			return
 		}
 		close = req.headers["connection"] == "close"

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -21,42 +23,50 @@ type Request struct {
 	body    string
 }
 
-func readRequest(conn io.Reader) (Request, error) {
-	parsed := Request{}
+// r must live as long as the connection: bufio reads ahead into the next request.
+func readRequest(r *bufio.Reader) (Request, error) {
+	readline := func() (string, error) {
+		line, err := r.ReadString('\n')
+		return strings.TrimSuffix(line, "\r\n"), err
+	}
 
-	// Read data
-	buf := make([]byte, 1024)
-	n, err := conn.Read(buf)
+	line, err := readline()
 	if err != nil {
-		return parsed, err
+		return Request{}, err
 	}
-	msg := string(buf[:n])
-
-	left, right, found := strings.Cut(msg, CRLF)
-	if !found {
-		return parsed, errors.New("invalid HTTP")
+	parts := strings.Fields(line)
+	if len(parts) != 3 {
+		return Request{}, errors.New("request line should be exactly 3 parts")
 	}
-	requestLine := strings.Split(left, " ")
-	if len(requestLine) != 3 {
-		return parsed, errors.New("request line should be exactly 3 parts")
+	req := Request{
+		method:  Method(parts[0]),
+		path:    parts[1],
+		version: parts[2],
+		headers: map[string]string{},
 	}
-	parsed.method = Method(requestLine[0])
-	parsed.path = requestLine[1]
-	parsed.version = requestLine[2]
-
-	parsed.headers = map[string]string{}
-	left, right, found = strings.Cut(right, CRLF)
-	for found {
-		key, value, keepGoing := strings.Cut(left, ": ")
-		if !keepGoing {
+	for {
+		header, err := readline()
+		if err != nil {
+			return Request{}, err
+		}
+		if header == "" {
 			break
 		}
-		parsed.headers[strings.ToLower(key)] = value
-		left, right, found = strings.Cut(right, CRLF)
+		k, v, _ := strings.Cut(header, ":")
+		req.headers[strings.ToLower(strings.TrimSpace(k))] = strings.TrimSpace(v)
 	}
+	n := 0
+	if cl, ok := req.headers["content-length"]; ok {
+		n, err = strconv.Atoi(cl)
+		if err != nil || n < 0 || n > 10<<20 {
+			return Request{}, errors.New("bad content-length")
+		}
+	}
+	body := make([]byte, n)
+	if _, err := io.ReadFull(r, body); err != nil {
+		return Request{}, err
+	}
+	req.body = string(body)
 
-	body, _, _ := strings.Cut(right, CRLF)
-	parsed.body = body
-
-	return parsed, nil
+	return req, nil
 }
